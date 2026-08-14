@@ -1,8 +1,11 @@
-const WINDOW_DAYS = Number(document.body.dataset.window || 7);
+const WINDOW_MODE = document.body.dataset.window || "7";
+const IS_MONTH_TO_DATE = WINDOW_MODE === "mtd";
+const WINDOW_DAYS = IS_MONTH_TO_DATE ? null : Number(WINDOW_MODE);
 const PERIOD_LINKS = [
-  { days: 7, label: "Past 7 days", href: "./" },
-  { days: 30, label: "Past 30 days", href: "30-days.html" },
-  { days: 90, label: "Past 90 days", href: "90-days.html" },
+  { mode: "mtd", label: "This month", href: "month-to-date.html" },
+  { mode: "7", label: "Past 7 days", href: "./" },
+  { mode: "30", label: "Past 30 days", href: "30-days.html" },
+  { mode: "90", label: "Past 90 days", href: "90-days.html" },
 ];
 const SERIES_COLORS = ["#60a5fa", "#a78bfa", "#34d399", "#ff7340"];
 const FUNNEL_COLORS = {
@@ -43,6 +46,15 @@ function dateRange(endDate, days) {
   return labels;
 }
 
+function reportingLabels(endDate) {
+  const days = IS_MONTH_TO_DATE ? new Date(`${endDate}T00:00:00Z`).getUTCDate() : WINDOW_DAYS;
+  return dateRange(endDate, days);
+}
+
+function periodLabel(labels) {
+  return IS_MONTH_TO_DATE ? "Month-to-date" : `${labels.length}-day`;
+}
+
 function shortDate(value) {
   const date = new Date(`${value}T00:00:00Z`);
   return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", timeZone: "UTC" }).format(date);
@@ -69,7 +81,7 @@ function chartOptions(labels, percentAxis = false) {
   return {
     responsive: true,
     maintainAspectRatio: false,
-    animation: WINDOW_DAYS <= 30 ? { duration: 420 } : false,
+    animation: labels.length <= 30 ? { duration: 420 } : false,
     interaction: { mode: "index", intersect: false },
     plugins: {
       legend: {
@@ -84,7 +96,7 @@ function chartOptions(labels, percentAxis = false) {
     scales: {
       x: {
         grid: { display: false },
-        ticks: { color: "#6E6D74", maxTicksLimit: WINDOW_DAYS <= 7 ? 7 : 12, font: { size: 9 }, callback(index) { return shortDate(labels[index]); } },
+        ticks: { color: "#6E6D74", maxTicksLimit: labels.length <= 7 ? 7 : 12, font: { size: 9 }, callback(index) { return shortDate(labels[index]); } },
       },
       y: {
         beginAtZero: true,
@@ -103,7 +115,7 @@ function baseDataset(label, data, color, index) {
     backgroundColor: `${color}${index === 0 ? "18" : "0D"}`,
     fill: index === 0,
     tension: 0.32,
-    pointRadius: WINDOW_DAYS <= 7 ? 2.8 : WINDOW_DAYS <= 30 ? 1.5 : 0,
+    pointRadius: data.length <= 7 ? 2.8 : data.length <= 30 ? 1.5 : 0,
     pointHoverRadius: 4,
     borderWidth: index === 0 ? 2.3 : 1.7,
   };
@@ -126,7 +138,7 @@ function pageShell(data, labels) {
         <div class="brand-center"><h1>Growth <span class="gradient-text">Dashboard</span></h1><p>GA4 product and acquisition trends across Pixelbin, Watermark Remover, and Upscale Media</p></div>
         <div class="brand-right"><span class="chip">Refreshed ${esc(formatBuiltAt(data.generatedAt))}</span></div>
       </header>
-      <nav class="period-nav" aria-label="Dashboard period">${PERIOD_LINKS.map((item) => `<a class="period-link${item.days === WINDOW_DAYS ? " active" : ""}" href="${item.href}">${item.label}</a>`).join("")}</nav>
+      <nav class="period-nav" aria-label="Dashboard period">${PERIOD_LINKS.map((item) => `<a class="period-link${item.mode === WINDOW_MODE ? " active" : ""}" href="${item.href}">${item.label}</a>`).join("")}</nav>
       <nav class="tab-nav" aria-label="Dashboard sections">${propertyTabs.map((tab, index) => `<button class="tab-button${index === 0 ? " active" : ""}" data-tab="${tab.id}">${tab.label}</button>`).join("")}</nav>
       <section class="tab-panel active" id="panel-overview"></section>
       <section class="tab-panel" id="panel-ai-tools"></section>
@@ -139,7 +151,7 @@ function pageShell(data, labels) {
 }
 
 function introHtml(title, text, labels, chips = "") {
-  return `<div class="card intro"><div><p class="eyebrow">${WINDOW_DAYS}-day view</p><h2>${esc(title)}</h2><p>${text}</p></div><div class="range-box">${chips}<span>Reporting range</span><strong>${esc(shortDate(labels[0]))} – ${esc(shortDate(labels.at(-1)))} 2026</strong><span>Today is partial</span></div></div>`;
+  return `<div class="card intro"><div><p class="eyebrow">${periodLabel(labels)} view</p><h2>${esc(title)}</h2><p>${text}</p></div><div class="range-box">${chips}<span>Reporting range</span><strong>${esc(shortDate(labels[0]))} – ${esc(shortDate(labels.at(-1)))} 2026</strong><span>Today is partial</span></div></div>`;
 }
 
 function renderOverview(data, labels) {
@@ -221,7 +233,7 @@ function funnelCardHtml(tool, index, labels) {
   const pageViews = stages.find((stage) => stage.kind === "traffic")?.total || 0;
   const keyEvents = sum(stages.filter((stage) => stage.kind === "key").map((stage) => stage.total));
   return `<article class="card chart-card funnel-card">
-    <div class="chart-head"><div class="chart-head-left"><p class="eyebrow">#${tool.rank} by 90-day content-group traffic · ${WINDOW_DAYS}-day funnel</p><h3>${esc(tool.name)}</h3><div class="meta">${esc(tool.contentGroup)}</div></div><div class="chart-head-actions"><span class="chip green">${fmt(pageViews)} views</span><button class="info-button" data-funnel-index="${index}" aria-label="Show funnel event mapping">i</button></div></div>
+    <div class="chart-head"><div class="chart-head-left"><p class="eyebrow">#${tool.rank} by 90-day content-group traffic · ${periodLabel(labels)} funnel</p><h3>${esc(tool.name)}</h3><div class="meta">${esc(tool.contentGroup)}</div></div><div class="chart-head-actions"><span class="chip green">${fmt(pageViews)} views</span><button class="info-button" data-funnel-index="${index}" aria-label="Show funnel event mapping">i</button></div></div>
     <div class="funnel-stage-grid">${stages.map((stage) => {
       const rate = pageViews ? (stage.total / pageViews) * 100 : 0;
       return `<div class="funnel-stage" style="--stage-color:${FUNNEL_COLORS[stage.kind] || "#6E6D74"}"><span>${esc(stage.label)}</span><strong>${fmt(stage.total)}</strong><small>${rate.toFixed(rate < 1 ? 2 : 1)}% of views</small></div>`;
@@ -264,11 +276,11 @@ function renderAiTools(data, labels) {
   const panel = document.getElementById("panel-ai-tools");
   const tools = data.aiTools.tools;
   panel.innerHTML = introHtml(
-    `Top 10 AI-tool ${WINDOW_DAYS}-day funnels`,
+    `Top 10 AI-tool ${periodLabel(labels)} funnels`,
     `${esc(data.aiTools.selectionRule)} Every traffic and downstream event uses the exact same customEvent:content_group value.`,
     labels,
     `<span class="chip orange">Exact content_group mapping</span>`,
-  ) + funnelSummary(tools, labels) + `<div class="section-title"><div><h2>Page view to signup funnel</h2><p>Bar lengths show each stage as a percentage of the selected period's content-group page views; cards retain raw event counts.</p></div><span class="chip">10 tools · ${WINDOW_DAYS} days</span></div><div class="chart-grid">${tools.map((tool, index) => funnelCardHtml(tool, index, labels)).join("")}</div>`;
+  ) + funnelSummary(tools, labels) + `<div class="section-title"><div><h2>Page view to signup funnel</h2><p>Bar lengths show each stage as a percentage of the selected period's content-group page views; cards retain raw event counts.</p></div><span class="chip">10 tools · ${IS_MONTH_TO_DATE ? "this month" : `${labels.length} days`}</span></div><div class="chart-grid">${tools.map((tool, index) => funnelCardHtml(tool, index, labels)).join("")}</div>`;
 
   tools.forEach((tool, index) => {
     const stages = periodFunnelStages(tool, labels);
@@ -316,7 +328,7 @@ function openMapping(tool) {
 function openFunnelMapping(tool, labels) {
   const modal = document.getElementById("mapping-modal");
   const stages = periodFunnelStages(tool, labels);
-  document.getElementById("mapping-content").innerHTML = `<div class="modal-head"><div><p class="eyebrow">${WINDOW_DAYS}-day funnel attribution</p><h3>${esc(tool.name)}</h3><div class="meta">${esc(tool.contentGroup)}</div></div><button class="close-button" id="close-modal">Close</button></div><ul class="mapping-list">${stages.map((stage) => `<li><span class="chip ${stage.kind === "success" ? "green" : stage.kind === "gate" ? "orange" : "gray"}">${esc(stage.label)}</span><code>${esc(stage.eventNames.join(" + "))}</code><span>${esc(stage.mapping)}${stage.isRegisteredKeyEvent ? " · key event" : ""}</span></li>`).join("")}</ul><div class="path-box">Dimension: customEvent:content_group\nExact value: ${esc(tool.contentGroup)}\nWindow: ${esc(labels[0])} to ${esc(labels.at(-1))}</div><p class="source-note">Every AI-tool stage, including <code>page_view</code>, is filtered by the same exact content group. Pixelbin Console product charts use exact <code>customEvent:app_name</code> where the app emits it.</p>`;
+  document.getElementById("mapping-content").innerHTML = `<div class="modal-head"><div><p class="eyebrow">${periodLabel(labels)} funnel attribution</p><h3>${esc(tool.name)}</h3><div class="meta">${esc(tool.contentGroup)}</div></div><button class="close-button" id="close-modal">Close</button></div><ul class="mapping-list">${stages.map((stage) => `<li><span class="chip ${stage.kind === "success" ? "green" : stage.kind === "gate" ? "orange" : "gray"}">${esc(stage.label)}</span><code>${esc(stage.eventNames.join(" + "))}</code><span>${esc(stage.mapping)}${stage.isRegisteredKeyEvent ? " · key event" : ""}</span></li>`).join("")}</ul><div class="path-box">Dimension: customEvent:content_group\nExact value: ${esc(tool.contentGroup)}\nWindow: ${esc(labels[0])} to ${esc(labels.at(-1))}</div><p class="source-note">Every AI-tool stage, including <code>page_view</code>, is filtered by the same exact content group. Pixelbin Console product charts use exact <code>customEvent:app_name</code> where the app emits it.</p>`;
   modal.classList.add("open");
   document.getElementById("close-modal").onclick = () => modal.classList.remove("open");
 }
@@ -339,7 +351,7 @@ async function init() {
     const response = await fetch("data/dashboard.json", { cache: "no-store" });
     if (!response.ok) throw new Error(`Dashboard data returned ${response.status}`);
     const data = await response.json();
-    const labels = dateRange(data.range.end, WINDOW_DAYS);
+    const labels = reportingLabels(data.range.end);
     document.getElementById("app").innerHTML = pageShell(data, labels);
     renderOverview(data, labels);
     renderAiTools(data, labels);

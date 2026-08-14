@@ -193,7 +193,7 @@ footer { padding: 25px 0 4px; color: var(--pb-sub); text-align: center; font-siz
   .property-chart { height: 255px; }
 }
 @media (max-width: 520px) {
-  .period-nav { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .period-nav { display: grid; grid-template-columns: repeat(4, 1fr); }
   .period-link { min-width: 0; padding-inline: 8px; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .kpi:last-child { grid-column: span 2; }
